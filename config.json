@@ -1,0 +1,40 @@
+{
+    "alt-button": {
+        "gpio": {
+            "pin": 0
+        }
+    },
+    "potentiometer": {
+        "gpio": {
+            "pin": 0
+        },
+        "boundaries": [2,2,2,2]
+    },
+    "rotary": {
+        "gpio": {
+            "pinA": 7,
+            "pinB": 9
+        },
+        "sensitivity": [2,2,2,2],
+        "lastPosition": 0
+    },
+    "playlists": {
+        "standard": ["std_1.json", "std_2.json", "std_3.json", "std_4.json"],
+        "alternative": ["alt_1.json", "alt_2.json", "alt_3.json", "alt_4.json"],
+        "selector": "rotary" //"potentiometer"
+    },
+    "transitions": {
+        "standard": [
+            ["std_1to2.h264", "std_1to3.h264", "std_1to4.h264"],
+            ["std_2to1.h264", "std_2to3.h264", "std_2to4.h264"],
+            ["std_3to1.h264", "std_3to2.h264", "std_3to4.h264"],
+            ["std_4to1.h264", "std_4to2.h264", "std_4to3.h264"],
+        ],
+        "alternative": [
+            ["alt_1to2.h264", "alt_1to3.h264", "alt_1to4.h264"],
+            ["alt_2to1.h264", "alt_2to3.h264", "alt_2to4.h264"],
+            ["alt_3to1.h264", "alt_3to2.h264", "alt_3to4.h264"],
+            ["alt_4to1.h264", "alt_4to2.h264", "alt_4to3.h264"],
+        ]
+    }
+}

@@ -9,6 +9,7 @@ import sys
 import signal
 import time
 import json
+import Queue
 
 import pygame
 
@@ -69,6 +70,7 @@ class VideoLooper(object):
         self._fgcolor = map(int, self._config.get('video_looper', 'fgcolor')
                                              .translate(None, ',')
                                              .split())
+        self._config_path = config.get('video_looper', 'config_json_path')
         # Load sound volume file name value
         self._sound_vol_file = self._config.get('omxplayer', 'sound_vol_file')
         # default value to 0 millibels (omxplayer)
@@ -115,32 +117,43 @@ class VideoLooper(object):
         """Search all the file reader paths for movie files with the provided
         extensions.
         """
-        # Get list of paths to search from the file reader.
-        paths = self._reader.search_paths()
-        # Enumerate all movie files inside those paths.
-        movies = []
-        for ex in self._extensions:
-            for path in paths:
-                # Skip paths that don't exist or are files.
-                if not os.path.exists(path) or not os.path.isdir(path):
-                    continue
-                # Ignore hidden files (useful when file loaded on usb
-                # key from an OSX computer
-                movies.extend(['{0}/{1}'.format(path.rstrip('/'), x)
-                               for x in os.listdir(path)
-                               if re.search('\.{0}$'.format(ex), x,
-                                            flags=re.IGNORECASE) and
-                               x[0] is not '.'])
-                # Get the video volume from the file in the usb key
-                sound_vol_file_path = '{0}/{1}'.format(path.rstrip('/'),
-                                                       self._sound_vol_file)
-                if os.path.exists(sound_vol_file_path):
-                    with open(sound_vol_file_path, 'r') as sound_file:
-                        sound_vol_string = sound_file.readline()
-                        if self._is_number(sound_vol_string):
-                            self._sound_vol = int(float(sound_vol_string))
-        # Create a playlist with the sorted list of movies.
-        return Playlist(sorted(movies), self._is_random)
+        if os.path.exists(path) and not os.path.isdir(path):
+            try:
+                with open(path, 'r') as config_file:
+                    self._config_obj = json.load(config_file)
+            except Exception as e:
+                print(e)
+                self._config_obj = None
+            else:
+                if self._config_obj is not None:
+
+
+        # # Get list of paths to search from the file reader.
+        # paths = self._reader.search_paths()
+        # # Enumerate all movie files inside those paths.
+        # movies = []
+        # for ex in self._extensions:
+        #     for path in paths:
+        #         # Skip paths that don't exist or are files.
+        #         if not os.path.exists(path) or not os.path.isdir(path):
+        #             continue
+        #         # Ignore hidden files (useful when file loaded on usb
+        #         # key from an OSX computer
+        #         movies.extend(['{0}/{1}'.format(path.rstrip('/'), x)
+        #                        for x in os.listdir(path)
+        #                        if re.search('\.{0}$'.format(ex), x,
+        #                                     flags=re.IGNORECASE) and
+        #                        x[0] is not '.'])
+        #         # Get the video volume from the file in the usb key
+        #         sound_vol_file_path = '{0}/{1}'.format(path.rstrip('/'),
+        #                                                self._sound_vol_file)
+        #         if os.path.exists(sound_vol_file_path):
+        #             with open(sound_vol_file_path, 'r') as sound_file:
+        #                 sound_vol_string = sound_file.readline()
+        #                 if self._is_number(sound_vol_string):
+        #                     self._sound_vol = int(float(sound_vol_string))
+        # # Create a playlist with the sorted list of movies.
+        # return Playlist(sorted(movies), self._is_random)
 
     def _blank_screen(self):
         """Render a blank screen filled with the background color."""
@@ -217,7 +230,9 @@ class VideoLooper(object):
         """Main program loop.  Will never return!"""
         # Get playlist of movies to play from file reader.
         playlist = self._build_playlist()
-        self._prepare_to_run_playlist(playlist)
+        #######################################
+        # self._prepare_to_run_playlist(playlist)
+        #######################################
         # Main loop to play videos in the playlist and listen for file changes.
         while self._running:
             # Load and play a new movie if nothing is playing.
