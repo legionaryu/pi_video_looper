@@ -8,12 +8,14 @@ import re
 import sys
 import signal
 import time
-import json
-import Queue
+import ujson as json
 
+import gaugette.rotary_encoder
+import gaugette.switch
 import pygame
 
 from model import Playlist
+from collections import deque
 
 
 # Basic video looper architecure:
@@ -71,6 +73,21 @@ class VideoLooper(object):
                                              .translate(None, ',')
                                              .split())
         self._config_path = config.get('video_looper', 'config_json_path')
+        if os.path.exists(path) and not os.path.isdir(path):
+            try:
+                with open(path, 'r') as config_file:
+                    self._config_obj = json.load(config_file)
+            except Exception as e:
+                print(e)
+                self._config_obj = None
+            else:
+                encoder_gpio = self._config_obj['rotary']['gpio']
+                self._rotary = gaugette.rotary_encoder
+                               .RotaryEncoder(encoder_gpio['pinA'],
+                                              encoder_gpio['pinB'])
+                self._switch = gaugette.switch.Switch(
+                    self._config_obj['altButton']['gpio']['pin'])
+
         # Load sound volume file name value
         self._sound_vol_file = self._config.get('omxplayer', 'sound_vol_file')
         # default value to 0 millibels (omxplayer)
@@ -113,47 +130,69 @@ class VideoLooper(object):
         except ValueError:
             return False
 
+    def _updateEncoderPostion(self):
+        boundaries = self._config_obj['rotary']['boundaries']
+        rotaryPosition = self._getRotaryPosition()
+        try:
+            self._encoderPosition
+        except NameError:
+            self._encoderPosition = 0
+            # self._encoderPosition = sum(
+            #         boundaries[:self._getRotaryPosition()+1])
+        self._encoderPosition += self._rotary.get_delta()
+        if self._encoderPosition <= -boundaries[rotaryPosition]:
+            self._encoderPosition += boundaries[rotaryPosition]
+            if rotaryPosition > 0:
+                self._setRotaryPosition(rotaryPosition - 1)
+        elif self._encoderPosition >= boundaries[rotaryPosition]:
+            self._encoderPosition -= boundaries[rotaryPosition]
+            if rotaryPosition < 3:
+                self._setRotaryPosition(rotaryPosition + 1)
+
+    def  _setRotaryPosition(self, value):
+        self._config_obj['rotary']['position'] = value
+        self._save_json_config()
+
+    def  _getRotaryPosition(self):
+        return self._config_obj['rotary']['position']
+
+    def _save_json_config(self):
+        try:
+            with open(path, 'r') as config_file:
+                json.dump(config_file, self._config_obj)
+        except Exception as e:
+            print('_save_json_config', e)
+
     def _build_playlist(self):
         """Search all the file reader paths for movie files with the provided
         extensions.
         """
-        if os.path.exists(path) and not os.path.isdir(path):
+        # Get list of paths to search from the file reader.
+        paths = self._reader.search_paths()
+        if self._config_obj is not None:
+            self._current_playlist = deque([])
+            self._std_playlists = []
+            self._alt_playlists = []
+            self._current_playlist.get_next = self._current_playlist.popleft
             try:
-                with open(path, 'r') as config_file:
-                    self._config_obj = json.load(config_file)
+                playlists_path = self._config_obj['playlists']['standard']
+                for path in playlists_path:
+                    with open(os.path.join(paths[0], path), 'r')\
+                                                            as playlist_file:
+                        self._std_playlists.append(json.load(playlist_file))
+
+                playlists_path = self._config_obj['playlists']['alternative']
+                for path in playlists_path:
+                    with open(os.path.join(paths[0], path), 'r')\
+                                                            as playlist_file:
+                        self._alt_playlists.append(json.load(playlist_file))
+
+                self._current_playlist.extend(self._std_playlists
+                        [self._getRotaryPosition()])
             except Exception as e:
-                print(e)
-                self._config_obj = None
-            else:
-                if self._config_obj is not None:
+                print('_build_playlist load standard', e)
 
-
-        # # Get list of paths to search from the file reader.
-        # paths = self._reader.search_paths()
-        # # Enumerate all movie files inside those paths.
-        # movies = []
-        # for ex in self._extensions:
-        #     for path in paths:
-        #         # Skip paths that don't exist or are files.
-        #         if not os.path.exists(path) or not os.path.isdir(path):
-        #             continue
-        #         # Ignore hidden files (useful when file loaded on usb
-        #         # key from an OSX computer
-        #         movies.extend(['{0}/{1}'.format(path.rstrip('/'), x)
-        #                        for x in os.listdir(path)
-        #                        if re.search('\.{0}$'.format(ex), x,
-        #                                     flags=re.IGNORECASE) and
-        #                        x[0] is not '.'])
-        #         # Get the video volume from the file in the usb key
-        #         sound_vol_file_path = '{0}/{1}'.format(path.rstrip('/'),
-        #                                                self._sound_vol_file)
-        #         if os.path.exists(sound_vol_file_path):
-        #             with open(sound_vol_file_path, 'r') as sound_file:
-        #                 sound_vol_string = sound_file.readline()
-        #                 if self._is_number(sound_vol_string):
-        #                     self._sound_vol = int(float(sound_vol_string))
-        # # Create a playlist with the sorted list of movies.
-        # return Playlist(sorted(movies), self._is_random)
+            return self._current_playlist
 
     def _blank_screen(self):
         """Render a blank screen filled with the background color."""
@@ -226,31 +265,46 @@ class VideoLooper(object):
         else:
             self._idle_message()
 
+    def _addTransitionToState(self, state):
+        dirpath = self._reader.search_paths()[0]
+        if state == 1:
+            self._config_obj['transitions']['stdToAlt']
+
     def run(self):
         """Main program loop.  Will never return!"""
         # Get playlist of movies to play from file reader.
         playlist = self._build_playlist()
+        if playlist is None:
+            self.signal_quit()
+            return
+        dirpath = self._reader.search_paths()[0]
         #######################################
         # self._prepare_to_run_playlist(playlist)
         #######################################
         # Main loop to play videos in the playlist and listen for file changes.
+        swith_state = self._switch.get_state()
         while self._running:
+            new_state = self._switch.get_state()
+            if swith_state != new_state:
+                swith_state = new_state
+
+            old_position = self._getRotaryPosition()
+            self._updateEncoderPostion()
+            new_position = self._getRotaryPosition()
+            if old_position != new_position:
+                pass
             # Load and play a new movie if nothing is playing.
             if not self._player.is_playing():
-                movie = playlist.get_next()
+                movie = playlist.popleft()
                 if movie is not None:
                     # Start playing the first available movie.
                     self._print('Playing movie: {0}'.format(movie))
-                    self._player.play(movie, loop=playlist.length() == 1,
-                                      vol=self._sound_vol)
-            # Check for changes in the file search path (like USB drives added)
-            # and rebuild the playlist.
-            if self._reader.is_changed():
-                # Up to 3 second delay waiting for old player to stop.
-                self._player.stop(3)
-                # Rebuild playlist and show countdown again (if OSD enabled).
-                playlist = self._build_playlist()
-                self._prepare_to_run_playlist(playlist)
+                    self._player.play(os.path.join(dirpath, movie),
+                        loop=playlist.length() == 1, vol=self._sound_vol)
+                if playlist.length() <= 1:
+                    self._current_playlist.extend(self._std_playlists
+                        [self._getRotaryPosition()])
+
             # Give the CPU some time to do other tasks.
             time.sleep(0.002)
 

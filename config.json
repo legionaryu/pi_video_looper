@@ -1,7 +1,7 @@
 {
-    "alt-button": {
+    "altButton": {
         "gpio": {
-            "pin": 0
+            "pin": 8
         }
     },
     "potentiometer": {
@@ -15,8 +15,8 @@
             "pinA": 7,
             "pinB": 9
         },
-        "sensitivity": [2,2,2,2],
-        "lastPosition": 0
+        "boundaries": [2,2,2,2],
+        "position": 0
     },
     "playlists": {
         "standard": ["std_1.json", "std_2.json", "std_3.json", "std_4.json"],
@@ -35,6 +35,18 @@
             ["alt_2to1.h264", "alt_2to3.h264", "alt_2to4.h264"],
             ["alt_3to1.h264", "alt_3to2.h264", "alt_3to4.h264"],
             ["alt_4to1.h264", "alt_4to2.h264", "alt_4to3.h264"],
+        ],
+        "altToStd": [
+            ["alt_to_std1.h264"],
+            ["alt_to_std2.h264"],
+            ["alt_to_std3.h264"],
+            ["alt_to_std4.h264"]
+        ],
+        "stdToAlt": [
+            ["std_to_alt1.h264"],
+            ["std_to_alt2.h264"],
+            ["std_to_alt3.h264"],
+            ["std_to_alt4.h264"]
         ]
     }
 }
