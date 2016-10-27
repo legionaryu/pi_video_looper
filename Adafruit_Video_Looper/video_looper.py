@@ -72,19 +72,21 @@ class VideoLooper(object):
         self._fgcolor = map(int, self._config.get('video_looper', 'fgcolor')
                                              .translate(None, ',')
                                              .split())
-        self._config_path = config.get('video_looper', 'config_json_path')
-        if os.path.exists(path) and not os.path.isdir(path):
+        self._config_path = self._config.get('video_looper',
+                                             'config_json_path')
+        if os.path.exists(self._config_path) and not \
+                os.path.isdir(self._config_path):
             try:
-                with open(path, 'r') as config_file:
+                with open(self._config_path, 'r') as config_file:
                     self._config_obj = json.load(config_file)
             except Exception as e:
-                print(e)
+                print('loading config obj:', e)
                 self._config_obj = None
             else:
                 encoder_gpio = self._config_obj['rotary']['gpio']
-                self._rotary = gaugette.rotary_encoder
-                               .RotaryEncoder(encoder_gpio['pinA'],
-                                              encoder_gpio['pinB'])
+                self._rotary = gaugette.rotary_encoder\
+                    .RotaryEncoder(encoder_gpio['pinA'],
+                                   encoder_gpio['pinB'])
                 self._switch = gaugette.switch.Switch(
                     self._config_obj['altButton']['gpio']['pin'])
 
@@ -135,11 +137,14 @@ class VideoLooper(object):
         rotaryPosition = self._getRotaryPosition()
         try:
             self._encoderPosition
-        except NameError:
+        except:
             self._encoderPosition = 0
             # self._encoderPosition = sum(
             #         boundaries[:self._getRotaryPosition()+1])
-        self._encoderPosition += self._rotary.get_delta()
+        delta = self._rotary.get_delta()
+        if delta != 0:
+            print('Encoder update: ', delta)
+        self._encoderPosition += delta
         if self._encoderPosition <= -boundaries[rotaryPosition]:
             self._encoderPosition += boundaries[rotaryPosition]
             if rotaryPosition > 0:
@@ -149,19 +154,19 @@ class VideoLooper(object):
             if rotaryPosition < 3:
                 self._setRotaryPosition(rotaryPosition + 1)
 
-    def  _setRotaryPosition(self, value):
+    def _setRotaryPosition(self, value):
         self._config_obj['rotary']['position'] = value
         self._save_json_config()
 
-    def  _getRotaryPosition(self):
+    def _getRotaryPosition(self):
         return self._config_obj['rotary']['position']
 
     def _save_json_config(self):
         try:
-            with open(path, 'r') as config_file:
-                json.dump(config_file, self._config_obj)
+            with open(self._config_path, 'w') as config_file:
+                json.dump(self._config_obj, config_file)
         except Exception as e:
-            print('_save_json_config', e)
+            print('_save_json_config:', e)
 
     def _build_playlist(self):
         """Search all the file reader paths for movie files with the provided
@@ -170,28 +175,34 @@ class VideoLooper(object):
         # Get list of paths to search from the file reader.
         paths = self._reader.search_paths()
         if self._config_obj is not None:
+            print('_build_playlist:', 'self._config_obj is not None')
             self._current_playlist = deque([])
             self._std_playlists = []
             self._alt_playlists = []
-            self._current_playlist.get_next = self._current_playlist.popleft
+
             try:
                 playlists_path = self._config_obj['playlists']['standard']
+                print('_build_playlist:', 'standard playlists')
                 for path in playlists_path:
                     with open(os.path.join(paths[0], path), 'r')\
-                                                            as playlist_file:
+                            as playlist_file:
                         self._std_playlists.append(json.load(playlist_file))
 
                 playlists_path = self._config_obj['playlists']['alternative']
+                print('_build_playlist:', 'alternative playlists')
                 for path in playlists_path:
                     with open(os.path.join(paths[0], path), 'r')\
-                                                            as playlist_file:
+                            as playlist_file:
                         self._alt_playlists.append(json.load(playlist_file))
-
-                self._current_playlist.extend(self._std_playlists
-                        [self._getRotaryPosition()])
+                print('_build_playlist:', 'current playlist')
+                self._current_playlist.extend(
+                    (self._std_playlists if self._switch.get_state() == 0
+                     else self._alt_playlists)[self._getRotaryPosition()])
             except Exception as e:
-                print('_build_playlist load standard', e)
+                print('_build_playlist load standard or alt', e)
 
+            print('_build_playlist:', 'returning current playlist',
+                  self._current_playlist)
             return self._current_playlist
 
     def _blank_screen(self):
@@ -268,14 +279,24 @@ class VideoLooper(object):
     def _addTransitionToState(self, state):
         dirpath = self._reader.search_paths()[0]
         if state == 1:
-            self._config_obj['transitions']['stdToAlt']
+            print('Adding transition from std to alt')
+            self._current_playlist.extend(
+                os.path.join(dirpath, self._config_obj
+                             ['transitions']['stdToAlt']
+                             [self._getRotaryPosition()]))
+        else:
+            print('Adding transition from alt to std')
+            self._current_playlist.extend(
+                os.path.join(dirpath, self._config_obj
+                             ['transitions']['altToStd']
+                             [self._getRotaryPosition()]))
 
     def run(self):
         """Main program loop.  Will never return!"""
         # Get playlist of movies to play from file reader.
         playlist = self._build_playlist()
         if playlist is None:
-            self.signal_quit()
+            self.signal_quit(None, None)
             return
         dirpath = self._reader.search_paths()[0]
         #######################################
@@ -286,6 +307,7 @@ class VideoLooper(object):
         while self._running:
             new_state = self._switch.get_state()
             if swith_state != new_state:
+                print('Switch update: ', new_state)
                 swith_state = new_state
 
             old_position = self._getRotaryPosition()
@@ -293,17 +315,19 @@ class VideoLooper(object):
             new_position = self._getRotaryPosition()
             if old_position != new_position:
                 pass
+
             # Load and play a new movie if nothing is playing.
             if not self._player.is_playing():
+                if len(playlist) <= 1:
+                    self._current_playlist.extend(self._std_playlists
+                                                  [self._getRotaryPosition()])
                 movie = playlist.popleft()
                 if movie is not None:
                     # Start playing the first available movie.
                     self._print('Playing movie: {0}'.format(movie))
                     self._player.play(os.path.join(dirpath, movie),
-                        loop=playlist.length() == 1, vol=self._sound_vol)
-                if playlist.length() <= 1:
-                    self._current_playlist.extend(self._std_playlists
-                        [self._getRotaryPosition()])
+                                      loop=False,  # playlist.length() == 1
+                                      vol=self._sound_vol)
 
             # Give the CPU some time to do other tasks.
             time.sleep(0.002)
