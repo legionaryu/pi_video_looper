@@ -11,9 +11,16 @@ import ujson as json
 
 import serial
 import pygame
+import dummy_player
 
 from collections import deque
+from arduino_reader import ArduinoProtocol
 
+# Windows
+#PORT = 'COM4'
+
+# Linux
+#PORT = '/dev/ttyS0' # '/dev/ttyS1'
 
 # Basic video looper architecure:
 #
@@ -106,8 +113,12 @@ class VideoLooper(object):
     def _load_player(self):
         """Load the configured video player and return an instance of it."""
         module = self._config.get('video_looper', 'video_player')
-        return importlib.import_module('.' + module, 'Adafruit_Video_Looper') \
-            .create_player(self._config)
+        # 
+        if os.uname()[4].startswith("arm"):
+            return importlib.import_module('.' + module, 'Adafruit_Video_Looper') \
+                .create_player(self._config)
+        else:
+            return dummy_player.create_player(self._config)
 
     def _load_file_reader(self):
         """Load the configured file reader and return an instance of it."""
@@ -292,42 +303,45 @@ class VideoLooper(object):
         #######################################
         # self._prepare_to_run_playlist(playlist)
         #######################################
-        # Main loop to play videos in the playlist and listen for file changes.
-        swith_state = self._switch.get_state()
-        while self._running:
-            for event in pygame.event.get():
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        print('Escape Keydown')
-                        self.signal_quit(None, None)
-                        return
+        ser = serial.serial_for_url(PORT, baudrate=115200, timeout=1)
+        with serial.threaded.ReaderThread(ser, ArduinoProtocol) as protocol:
+            # Main loop to play videos in the playlist and listen for file changes.
+            charger_state = protocol.charger_state
+            old_position = protocol.selector_position
+            while self._running:
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            print('Escape Keydown')
+                            self.signal_quit(None, None)
+                            return
 
-            new_state = self._switch.get_state()
-            if swith_state != new_state:
-                print('Switch update: ', new_state)
-                swith_state = new_state
+                new_state = protocol.charger_state
+                if swith_state != new_state:
+                    print('Switch update: ', new_state)
+                    swith_state = new_state
 
-            old_position = self._getRotaryPosition()
-            self._updateEncoderPostion()
-            new_position = self._getRotaryPosition()
-            if old_position != new_position:
-                pass
+                new_position = protocol.selector_position
+                if old_position != new_position:
+                    print('Position update: ', new_position)
+                    old_position = new_position
+                    pass
 
-            # Load and play a new movie if nothing is playing.
-            if not self._player.is_playing():
-                if len(playlist) <= 1:
-                    self._current_playlist.extend(self._std_playlists
-                                                  [self._getRotaryPosition()])
-                movie = playlist.popleft()
-                if movie is not None:
-                    # Start playing the first available movie.
-                    self._print('Playing movie: {0}'.format(movie))
-                    self._player.play(os.path.join(dirpath, movie),
-                                      loop=False,  # playlist.length() == 1
-                                      vol=self._sound_vol)
+                # Load and play a new movie if nothing is playing.
+                if not self._player.is_playing():
+                    if len(playlist) <= 1:
+                        self._current_playlist.extend(self._std_playlists
+                                                      [self._getRotaryPosition()])
+                    movie = playlist.popleft()
+                    if movie is not None:
+                        # Start playing the first available movie.
+                        self._print('Playing movie: {0}'.format(movie))
+                        self._player.play(os.path.join(dirpath, movie),
+                                          loop=False,  # playlist.length() == 1
+                                          vol=self._sound_vol)
 
-            # Give the CPU some time to do other tasks.
-            time.sleep(0.002)
+                # Give the CPU some time to do other tasks.
+                time.sleep(0.002)
 
     def signal_quit(self, signal, frame):
         """Shut down the program, meant to by called by signal handler."""
