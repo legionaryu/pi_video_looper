@@ -4,17 +4,14 @@
 import ConfigParser
 import importlib
 import os
-import re
 import sys
 import signal
 import time
 import ujson as json
 
-import gaugette.rotary_encoder
-import gaugette.switch
+import serial
 import pygame
 
-from model import Playlist
 from collections import deque
 
 
@@ -82,13 +79,6 @@ class VideoLooper(object):
             except Exception as e:
                 print('loading config obj:', e)
                 self._config_obj = None
-            else:
-                encoder_gpio = self._config_obj['rotary']['gpio']
-                self._rotary = gaugette.rotary_encoder\
-                    .RotaryEncoder(encoder_gpio['pinA'],
-                                   encoder_gpio['pinB'])
-                self._switch = gaugette.switch.Switch(
-                    self._config_obj['altButton']['gpio']['pin'])
 
         # Load sound volume file name value
         self._sound_vol_file = self._config.get('omxplayer', 'sound_vol_file')
@@ -305,6 +295,13 @@ class VideoLooper(object):
         # Main loop to play videos in the playlist and listen for file changes.
         swith_state = self._switch.get_state()
         while self._running:
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        print('Escape Keydown')
+                        self.signal_quit(None, None)
+                        return
+
             new_state = self._switch.get_state()
             if swith_state != new_state:
                 print('Switch update: ', new_state)
