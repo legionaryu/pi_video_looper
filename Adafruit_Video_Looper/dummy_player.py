@@ -3,6 +3,21 @@
 # License: GNU GPLv2, see LICENSE.txt
 import os
 import time
+import threading
+from functools import wraps
+
+
+def delay(delay=0.):
+    """
+    Decorator delaying the execution of a function for a while.
+    """
+    def wrap(f):
+        @wraps(f)
+        def delayed(*args, **kwargs):
+            timer = threading.Timer(delay, f, args=args, kwargs=kwargs)
+            timer.start()
+        return delayed
+    return wrap
 
 
 class DummyVideoPlayer(object):
@@ -39,18 +54,3 @@ class DummyVideoPlayer(object):
 def create_player(config):
     """Create new video player based on hello_video."""
     return DummyVideoPlayer(config)
-
-import threading
-from functools import wraps
-
-def delay(delay=0.):
-    """
-    Decorator delaying the execution of a function for a while.
-    """
-    def wrap(f):
-        @wraps(f)
-        def delayed(*args, **kwargs):
-            timer = threading.Timer(delay, f, args=args, kwargs=kwargs)
-            timer.start()
-        return delayed
-    return wrap

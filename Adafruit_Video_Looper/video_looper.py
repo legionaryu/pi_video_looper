@@ -7,10 +7,14 @@ import os
 import sys
 import signal
 import time
-import ujson as json
 
+# Non native
+import ujson as json
 import serial
+import serial.threaded
 import pygame
+
+# Ours
 import dummy_player
 
 from collections import deque
@@ -114,7 +118,7 @@ class VideoLooper(object):
         """Load the configured video player and return an instance of it."""
         module = self._config.get('video_looper', 'video_player')
         # 
-        if os.uname()[4].startswith("arm"):
+        if os.name == 'posix' and os.uname()[4].startswith("arm"):
             return importlib.import_module('.' + module, 'Adafruit_Video_Looper') \
                 .create_player(self._config)
         else:
@@ -354,8 +358,11 @@ class VideoLooper(object):
 # Main entry point.
 if __name__ == '__main__':
     print('Starting Adafruit Video Looper.')
-    # Default config path to /boot.
-    config_path = '/boot/video_looper.ini'
+    if os.name == 'posix' and os.uname()[4].startswith("arm"):
+        # Default config path to /boot.
+        config_path = '/boot/video_looper.ini'
+    else:
+        config_path = 'video_looper.ini'
     # Override config path if provided as parameter.
     if len(sys.argv) == 2:
         config_path = sys.argv[1]
