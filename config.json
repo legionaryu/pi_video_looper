@@ -2,7 +2,8 @@
     "altButton": {
         "gpio": {
             "pin": 8
-        }
+        },
+        "state": false
     },
     "potentiometer": {
         "gpio": {
@@ -19,34 +20,34 @@
         "position": 0
     },
     "playlists": {
-        "standard": ["std_1.json", "std_2.json", "std_3.json", "std_4.json"],
-        "alternative": ["alt_1.json", "alt_2.json", "alt_3.json", "alt_4.json"],
+        "standard": ["playlist.json", "playlist.json", "playlist.json", "playlist.json"],
+        "alternative": ["playlist.json", "playlist.json", "playlist.json", "playlist.json"],
         "selector": "rotary"
     },
     "transitions": {
         "standard": [
-            ["std_1to2.h264", "std_1to3.h264", "std_1to4.h264"],
-            ["std_2to1.h264", "std_2to3.h264", "std_2to4.h264"],
-            ["std_3to1.h264", "std_3to2.h264", "std_3to4.h264"],
-            ["std_4to1.h264", "std_4to2.h264", "std_4to3.h264"]
+            ["Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264"]
         ],
         "alternative": [
-            ["alt_1to2.h264", "alt_1to3.h264", "alt_1to4.h264"],
-            ["alt_2to1.h264", "alt_2to3.h264", "alt_2to4.h264"],
-            ["alt_3to1.h264", "alt_3to2.h264", "alt_3to4.h264"],
-            ["alt_4to1.h264", "alt_4to2.h264", "alt_4to3.h264"]
+            ["Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264", "Coffee-53s-slomo.h264"]
         ],
         "altToStd": [
-            ["alt_to_std1.h264"],
-            ["alt_to_std2.h264"],
-            ["alt_to_std3.h264"],
-            ["alt_to_std4.h264"]
+            ["Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264"]
         ],
         "stdToAlt": [
-            ["std_to_alt1.h264"],
-            ["std_to_alt2.h264"],
-            ["std_to_alt3.h264"],
-            ["std_to_alt4.h264"]
+            ["Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264"],
+            ["Coffee-53s-slomo.h264"]
         ]
     }
 }

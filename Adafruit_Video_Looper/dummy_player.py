@@ -47,7 +47,7 @@ class DummyVideoPlayer(object):
         self._is_playing = False
 
     @delay(3)
-    def __stop_playing():
+    def __stop_playing(self):
         self._is_playing = False
 
 

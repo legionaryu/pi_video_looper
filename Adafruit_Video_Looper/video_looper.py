@@ -21,7 +21,7 @@ from collections import deque
 from arduino_reader import ArduinoProtocol
 
 # Windows
-#PORT = 'COM4'
+PORT = 'COM8'
 
 # Linux
 #PORT = '/dev/ttyS0' # '/dev/ttyS1'
@@ -95,14 +95,19 @@ class VideoLooper(object):
         self._sound_vol_file = self._config.get('omxplayer', 'sound_vol_file')
         # default value to 0 millibels (omxplayer)
         self._sound_vol = 0
+
         # Initialize pygame and display a blank screen.
         pygame.display.init()
         pygame.font.init()
         pygame.mouse.set_visible(False)
-        size = (pygame.display.Info().current_w,
-                pygame.display.Info().current_h)
-        self._screen = pygame.display.set_mode(size, pygame.FULLSCREEN)
+        if os.name == 'posix' and os.uname()[4].startswith("arm"):
+            size = (pygame.display.Info().current_w,
+                    pygame.display.Info().current_h)
+            self._screen = pygame.display.set_mode(size, pygame.FULLSCREEN)
+        else:
+            self._screen = pygame.display.set_mode((100, 100), pygame.RESIZABLE)
         self._blank_screen()
+
         # Set other static internal state.
         self._extensions = self._player.supported_extensions()
         self._small_font = pygame.font.Font(None, 50)
@@ -126,9 +131,13 @@ class VideoLooper(object):
 
     def _load_file_reader(self):
         """Load the configured file reader and return an instance of it."""
-        module = self._config.get('video_looper', 'file_reader')
-        return importlib.import_module('.' + module, 'Adafruit_Video_Looper') \
-            .create_file_reader(self._config)
+        if os.name == 'posix' and os.uname()[4].startswith("arm"):
+            module = self._config.get('video_looper', 'file_reader')
+            return importlib.import_module('.' + module, 'Adafruit_Video_Looper') \
+                .create_file_reader(self._config)
+        else:
+            import directory
+            return directory.create_file_reader(self._config)
 
     def _is_number(iself, s):
         try:
@@ -158,6 +167,15 @@ class VideoLooper(object):
             self._encoderPosition -= boundaries[rotaryPosition]
             if rotaryPosition < 3:
                 self._setRotaryPosition(rotaryPosition + 1)
+
+
+    def _setChargerState(self, value):
+        self._config_obj['altButton']['state'] = value
+        self._save_json_config()
+
+
+    def _getChargerState(self):
+        return self._config_obj['altButton']['state']
 
     def _setRotaryPosition(self, value):
         self._config_obj['rotary']['position'] = value
@@ -189,6 +207,7 @@ class VideoLooper(object):
                 playlists_path = self._config_obj['playlists']['standard']
                 print('_build_playlist:', 'standard playlists')
                 for path in playlists_path:
+                    print('\t- %s'%os.path.join(paths[0], path))
                     with open(os.path.join(paths[0], path), 'r')\
                             as playlist_file:
                         self._std_playlists.append(json.load(playlist_file))
@@ -201,10 +220,11 @@ class VideoLooper(object):
                         self._alt_playlists.append(json.load(playlist_file))
                 print('_build_playlist:', 'current playlist')
                 self._current_playlist.extend(
-                    (self._std_playlists if self._switch.get_state() == 0
+                    (self._std_playlists if self._getChargerState() == 0
                      else self._alt_playlists)[self._getRotaryPosition()])
             except Exception as e:
-                print('_build_playlist load standard or alt', e)
+                print('----------------- EXCEPTION ----------------\r\n'+
+                      '_build_playlist load standard or alt: %s' % e)
 
             print('_build_playlist:', 'returning current playlist',
                   self._current_playlist)
@@ -321,21 +341,25 @@ class VideoLooper(object):
                             return
 
                 new_state = protocol.charger_state
-                if swith_state != new_state:
-                    print('Switch update: ', new_state)
-                    swith_state = new_state
+                if charger_state != new_state:
+                    print('Charger state update: ', new_state)
+                    charger_state = new_state
 
                 new_position = protocol.selector_position
                 if old_position != new_position:
                     print('Position update: ', new_position)
                     old_position = new_position
+                    self._setRotaryPosition(old_position)
                     pass
 
                 # Load and play a new movie if nothing is playing.
                 if not self._player.is_playing():
                     if len(playlist) <= 1:
+                        print('adding to current playlist: %s\r\n\tvideo: %s' 
+                            % (self._current_playlist, self._std_playlists
+                                                            [old_position]) )
                         self._current_playlist.extend(self._std_playlists
-                                                      [self._getRotaryPosition()])
+                                                      [old_position])
                     movie = playlist.popleft()
                     if movie is not None:
                         # Start playing the first available movie.
